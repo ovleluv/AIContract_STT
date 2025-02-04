@@ -1,0 +1,29 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>계약서 자동완성 챗봇</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>계약서 자동완성 챗봇</h1>
+        <div id="chat-box">
+            <div class="bot-message">안녕하세요! 계약서 종류를 선택해 주세요.</div>
+        </div>
+        <div id="button-options">
+            <button onclick="selectContract('1')">1. 부동산임대차계약서</button>
+            <button onclick="selectContract('2')">2. 위임장</button>
+            <button onclick="selectContract('3')">3. 소장</button>
+        </div>
+        <div id="user-input" style="display:none;">
+            <input type="text" id="text-input" placeholder="메시지를 입력하세요">
+            <button id="send-btn">전송</button>
+        </div>
+        <button id="record-btn">🎙️ 음성 입력</button>
+    </div>
+</body>
+</html>
