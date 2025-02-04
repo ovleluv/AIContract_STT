@@ -1,3 +1,85 @@
+// 🎙️ 음성 녹음 관련 변수 및 설정
+let mediaRecorder;
+let audioChunks = [];
+
+// 마이크 접근 거부 시 안내 메시지 및 재시도 버튼 추가
+document.getElementById('record-btn').addEventListener('click', function () {
+    if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        startRecording();  // 녹음 시작
+    } else if (mediaRecorder.state === "recording") {
+        stopRecording();  // 녹음 종료
+    }
+});
+
+// 녹음 시작 함수 수정
+function startRecording() {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.start();
+            appendMessage("🎙️ 녹음이 시작되었습니다. 다시 클릭하여 녹음을 종료하세요.", 'bot');
+
+            audioChunks = [];
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                sendAudioToServer(audioBlob);
+            };
+        })
+        .catch(err => {
+            appendMessage("❌ 마이크 접근이 거부되었습니다. 권한을 허용한 후 다시 시도해 주세요.", 'bot');
+            appendMessage("🔧 해결 방법:\n1. 브라우저 주소창 왼쪽의 🔒 자물쇠 아이콘 클릭\n2. '마이크' 권한을 '허용'으로 변경\n3. 페이지 새로고침 후 다시 시도", 'bot');
+            addRetryButton();  // 재시도 버튼 추가
+        });
+}
+
+// 녹음 종료 함수
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        appendMessage("녹음이 종료되었습니다. 변환 중입니다...", 'bot');
+    }
+}
+
+// 녹음된 오디오 파일을 서버로 전송
+function sendAudioToServer(audioBlob) {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.webm');
+
+    fetch('/stt', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.text) {
+            appendMessage("음성 인식 결과: " + data.text, 'bot');
+            appendMessage(data.text, 'user');
+            extractContractFields(data.text);  // 음성 인식 결과로 필드 추출
+        } else {
+            appendMessage("음성 인식에 실패했습니다. 다시 시도해주세요.", 'bot');
+        }
+    })
+    .catch(() => {
+        appendMessage("서버 오류가 발생했습니다. 다시 시도해주세요.", 'bot');
+    });
+}
+
+// 권한 재요청을 위한 재시도 버튼 추가
+function addRetryButton() {
+    const retryButton = document.createElement('button');
+    retryButton.textContent = "권한 재요청";
+    retryButton.style.marginTop = "10px";
+    retryButton.addEventListener('click', function() {
+        startRecording();  // 권한 재요청
+    });
+
+    const chatBox = document.getElementById('chat-box');
+    chatBox.appendChild(retryButton);
+}
 
 // 채팅 메시지를 추가하는 함수
 function appendMessage(message, sender) {

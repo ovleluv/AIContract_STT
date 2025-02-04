@@ -120,3 +120,37 @@ button:hover {
 #send-btn:hover {
     background-color: #0056b3;
 }
+
+/* 🎙️ 음성 녹음 버튼 스타일 */
+#record-btn {
+    position: absolute;
+    bottom: 20px;
+    right: 40px;
+    padding: 15px 20px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#record-btn:hover {
+    background-color: #218838;
+}
+
+/* 🎙️ 권한 재요청 버튼 스타일 */
+#chat-box button {
+    padding: 10px 20px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    background-color: #ffc107;
+    color: black;
+    cursor: pointer;
+}
+
+#chat-box button:hover {
+    background-color: #e0a800;
+}

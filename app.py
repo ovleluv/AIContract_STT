@@ -9,8 +9,10 @@ from docx import Document
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
+api_key = "my api key"
+
 # 환경 변수에서 API 키 로드
-api_key = os.environ.get("OPENAI_API_KEY")
+# api_key = os.environ.get("OPENAI_API_KEY")
 
 # API 키가 설정되지 않았을 경우 에러 처리
 if not api_key:
@@ -30,6 +32,16 @@ def serve():
 @app.route('/<path:path>')
 def static_files(path):
     return send_from_directory(app.static_folder, path)
+
+@app.route("/stt", methods=["POST"])
+def speech_to_text():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+
+    response = openai.Audio.transcribe("whisper-1", file)
+    return jsonify({"text": response["text"]})
 
 @app.route('/select', methods=['POST'])
 def select():
