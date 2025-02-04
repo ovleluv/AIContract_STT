@@ -1,0 +1,16 @@
+*.log
+*.tmp
+*.md
+__pycache__/
+*.pyc
+.env
+venv/
+node_modules/
+tests/
+docs/
+*.sqlite3
+*.csv
+*.zip
+*.tar
+*.mp4
+*.avi
