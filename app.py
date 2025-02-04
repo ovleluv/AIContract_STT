@@ -9,7 +9,7 @@ from docx import Document
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
-환경 변수에서 API 키 로드
+# 환경 변수에서 API 키 로드
 api_key = os.environ.get("OPENAI_API_KEY")
 
 # API 키가 설정되지 않았을 경우 에러 처리
