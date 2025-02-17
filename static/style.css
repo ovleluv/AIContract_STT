@@ -1,156 +1,275 @@
-/* 기존 스타일 유지 */
-body {
+/* Google 스타일 홈페이지 */
+.google-container {
+    text-align: center;
+    margin-top: 100px;
+}
+
+/* 🌟 구글 크롬 스타일 검색창 */
+.search-bar-container {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    margin: 0;
-    font-family: 'Noto Sans KR', Arial, sans-serif;
-    background-color: #f5f5f5;
+    margin-top: 30px;
+    position: relative;
+    width: 600px; /* ✅ 구글 크롬과 비슷한 너비 */
+    margin: auto;
 }
 
-/* 챗봇 컨테이너 */
+#search-input {
+    width: 100%;
+    height: 50px;
+    padding: 10px 50px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    font-size: 16px;
+    outline: none;
+    text-align: left;
+    transition: box-shadow 0.3s ease-in-out;
+    background-color: #fff;
+}
+
+#search-input:focus {
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+/* 🔍 아이콘 버튼 스타일 */
+.search-icons {
+    position: absolute;
+    right: 15px; /* ✅ 검색창 내부에서 오른쪽 정렬 */
+    display: flex;
+    gap: 10px; /* ✅ 아이콘 간격 조정 */
+    font-size: 22px; /* ✅ 아이콘 크기 증가 */
+    cursor: pointer;
+    align-items: center;
+}
+
+.search-icons span {
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.search-icons span:hover {
+    opacity: 1;
+}
+
+/* Quick Links */
+.quick-links {
+    margin-top: 20px;
+}
+
+.quick-links button {
+    margin: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+}
+
+/* ✅ 챗봇 UI: 챗박스와 메시지 입력창을 완전히 가운데 정렬 */
 .container {
-    width: 800px;
-    padding: 20px;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    text-align: center;
-}
-
-/* 채팅 박스 */
-#chat-box {
     display: flex;
     flex-direction: column;
-    gap: 2px; /* 메시지 간격을 최소화 */
+    align-items: center; /* ✅ 모든 요소를 가운데 정렬 */
+    justify-content: center;
+    height: 100vh; /* 화면 전체를 기준으로 가운데 정렬 */
+}
+
+/* ✅ 챗봇 UI 스타일 */
+#chat-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+/* ✅ 챗봇 메시지 박스 스타일 조정 */
+#chat-box {
+    border: 1px solid #ddd;
+    width: 500px;
     height: 400px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 10px;
-    margin-bottom: 20px; /* 전체 컨테이너 간격 조정 */
-    border-radius: 5px;
-    text-align: left;
-}
-
-/* 챗봇 메시지 스타일 */
-.bot-message {
-    align-self: flex-start;
-    background-color: #e3f2fd;
+    overflow-y: auto; /* ✅ 스크롤 가능하도록 설정 */
     padding: 15px;
-    margin: 10px 0;
-    border-radius: 8px;
-    max-width: 75%;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-size: 15px;
-    line-height: 1.6;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    clear: both;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 10px;
 }
 
-/* 사용자 메시지 스타일 */
+/* ✅ 챗봇 및 사용자 메시지 스타일 */
+.bot-message,
 .user-message {
-    padding: 15px;
-    margin: 10px 0;
-    border-radius: 8px;
+    padding: 10px;
+    border-radius: 10px;
     max-width: 75%;
-    background-color: #bbdefb;
-    white-space: pre-wrap;
-    word-wrap: break-word;
     font-size: 15px;
     line-height: 1.6;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    word-wrap: break-word;
+    margin-bottom: 10px;
+    overflow-wrap: break-word;
+    white-space: pre-wrap; /* ✅ 텍스트가 박스를 벗어나지 않도록 설정 */
+}
+
+/* ✅ 사용자 메시지 */
+.user-message {
+    background-color: #bbdefb;
     align-self: flex-end;
-    float: right;
-    clear: both;
 }
 
-/* 메시지 간격 추가 조정 */
-.user-message + .bot-message {
-    margin-top: 1px;
+/* ✅ 챗봇 메시지 */
+.bot-message {
+    background-color: #e3f2fd;
+    align-self: flex-start;
 }
 
-/* 리스트 스타일 개선 */
-.bot-message ul {
-    padding-left: 20px; /* 리스트 들여쓰기 조정 */
-    margin: 10px 0;
+/* ✅ 계약서 샘플 내용이 박스를 벗어나지 않도록 설정 */
+.bot-message pre {
+    background: #e3f2fd;
+    padding: 10px;
+    border-radius: 10px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-x: auto; /* ✅ 가로 스크롤 허용 */
+    max-width: 100%;
+    display: block;
 }
 
-.bot-message ul li {
-    list-style-type: disc;
-    margin-bottom: 3px;
+/* ✅ 메시지 입력창 */
+#user-input {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* ✅ 아이콘이 겹치지 않도록 정렬 */
+    width: 500px;
+    margin-top: 10px;
+    position: relative;
+    background: #fff;
+    border-radius: 25px;
+    padding: 5px 15px; /* ✅ 내부 여백 추가 */
+    border: 1px solid #ddd;
 }
 
-/* 버튼 스타일 유지 */
-button {
-    padding: 10px 20px;
-    margin: 5px;
-    border: none;
-    border-radius: 5px;
-    background-color: #007BFF;
-    color: white;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: #0056b3;
-}
-
-/* 입력 필드 스타일 */
+/* ✅ 입력 필드 */
 #text-input {
-    width: 50%;
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+    width: 100%;
+    height: 50px; /* 기본 높이 */
+    min-height: 50px; /* 최소 높이 */
+    max-height: 200px; /* 최대 높이 */
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
     font-size: 16px;
+    outline: none;
+    background: transparent;
+    resize: vertical; /* 사용자가 수직으로 조절 가능 */
+    overflow-y: auto; /* 스크롤 자동 적용 */
+    white-space: pre-wrap; /* 줄바꿈 적용 */
 }
 
-/* 메시지 전송 버튼 스타일 */
-#send-btn {
-    padding: 12px 24px;
-    margin-left: 10px;
+#text-input:focus {
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+}
+
+/* ✅ 아이콘 그룹 */
+.icon-group {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* ✅ 아이콘 간격 조정 */
+}
+
+/* ✅ 개별 아이콘 스타일 */
+.icon-btn {
+    font-size: 22px;
+    background: transparent;
     border: none;
-    border-radius: 5px;
-    background-color: #007BFF;
-    color: white;
     cursor: pointer;
+    opacity: 0.7;
 }
 
-#send-btn:hover {
-    background-color: #0056b3;
+.icon-btn:hover {
+    opacity: 1;
 }
 
-/* 🎙️ 음성 녹음 버튼 스타일 */
+/* 🔍 검색 버튼 스타일 */
+#search-btn {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+#search-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* 🎤 녹음 버튼 스타일 */
 #record-btn {
-    position: absolute;
-    bottom: 20px;
-    right: 40px;
-    padding: 15px 20px;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 50px;
-    font-size: 16px;
     cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    opacity: 0.7;
+    font-size: 22px;
+    background: transparent;
+    border: none;
+    transition: opacity 0.2s, transform 0.2s;
 }
 
 #record-btn:hover {
-    background-color: #218838;
+    opacity: 1;
+    transform: scale(1.1);
 }
 
-/* 🎙️ 권한 재요청 버튼 스타일 */
-#chat-box button {
-    padding: 10px 20px;
+/* 📄 계약서 선택 버튼 */
+.contract-btn {
+    cursor: pointer;
     margin: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f8f9fa;
+    transition: background-color 0.3s, opacity 0.2s, transform 0.2s;
+}
+
+.contract-btn:hover {
+    background-color: #e0e0e0;
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+/* 🔍 검색 버튼 스타일 */
+#send-btn {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+#send-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* ✅ 계약서 다운로드 버튼 스타일 */
+#download-btn {
+    margin-top: 15px;
+    padding: 10px 15px;
+    font-size: 16px;
     border: none;
     border-radius: 5px;
-    background-color: #ffc107;
-    color: black;
+    background-color: #4CAF50;
+    color: white;
     cursor: pointer;
 }
 
-#chat-box button:hover {
-    background-color: #e0a800;
+#download-btn:hover {
+    background-color: #45a049;
+}
+
+/* ✅ 자동 스크롤 유지 */
+#chat-box::-webkit-scrollbar {
+    width: 8px;
+}
+
+#chat-box::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
 }
