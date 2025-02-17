@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Contract auto-completion chatbot</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                const chatContainer = document.getElementById("chat-container");
+                chatContainer.style.display = "flex"; // ✅ 챗봇 UI 표시
+            });
+        </script>
+        <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+    </head>
+    <body>
+        <div id="chat-container">
+            <h1>Contract auto-completion chatbot</h1>
+            <div id="chat-box"></div>
+            <div id="user-input">
+                    <textarea id="text-input" placeholder="Please enter your message"></textarea>
+                    <div class="icon-group">
+                        <button id="record-btn" class="icon-btn">🎤</button>
+                        <button id="send-btn" class="icon-btn">📩</button>
+                    </div>
+            </div>
+        </div>
+    </body>
+</html>
