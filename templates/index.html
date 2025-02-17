@@ -8,25 +8,27 @@
     <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 <body>
-    <div class="google-container">
+
+    <div class="header-container">
         <h1>AICONTRACT</h1>
         <p class="subtitle">From spoken words to signed contracts, powered by AICONTRACT</p>
+    </div>
 
-        <!-- 검색창 -->
+    <div class="main-container">
         <div class="search-bar-container">
             <input type="text" id="search-input" placeholder="Please enter the type or content of the contract" onkeypress="handleSearch(event)">
             <div class="search-icons">
                 <button id="record-btn">🎤</button>
-                <span id="search-btn">🔍</span> <!-- ✅ 검색 버튼 ID 추가 -->
+                <span id="search-btn">🔍</span>
             </div>
         </div>
 
-        <!-- 계약서 선택 버튼 -->
         <div class="quick-links">
             <button class="contract-btn" data-value="Real Estate Lease Agreement">Real Estate Lease Agreement</button>
             <button class="contract-btn" data-value="Power of attorney">Power of attorney</button>
             <button class="contract-btn" data-value="Complaint">Complaint</button>
         </div>
     </div>
+
 </body>
 </html>
