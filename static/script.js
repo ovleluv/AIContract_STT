@@ -60,7 +60,7 @@ function startRecording() {
             mediaRecorder.start();
 
             isRecording = true;
-            document.getElementById('record-btn').textContent = "⏹️ 녹음 중지";
+            document.getElementById('record-btn').textContent = "⏹️ Stop Recording";
             console.log("🎙️ Start recording...");
         })
         .catch(error => {
