@@ -53,7 +53,7 @@ body {
     width: 80%; /* 가로 화면에서도 자동 조절 */
     max-width: 600px;
     min-width: 300px;
-    margin: 30px auto;
+    margin: 60px auto;
 }
 
 /* ✅ 검색 입력창 크기 자동 조절 */
