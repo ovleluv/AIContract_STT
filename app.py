@@ -4,7 +4,10 @@ import os
 import openai
 import re
 import json
+import tempfile
 from docx import Document
+from openai import OpenAI
+import subprocess
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
@@ -12,103 +15,336 @@ CORS(app)
 # 환경 변수에서 API 키 로드
 api_key = os.environ.get("OPENAI_API_KEY")
 
+
+client = OpenAI(api_key=api_key)
+
 # API 키가 설정되지 않았을 경우 에러 처리
 if not api_key:
-    raise ValueError("OpenAI API 키가 설정되지 않았습니다. 환경 변수를 확인하세요.")
-else: openai.api_key = api_key
+    raise ValueError("OpenAI API key is not set. Check your environment variables.")
+else:
+    openai.api_key = api_key
 
 contract_types = {
-    "1": "부동산임대차계약서",
-    "2": "위임장",
-    "3": "소장"
+    "Real Estate Lease Agreement": "Documents related to Real Estate Lease Agreement",
+    "Power of attorney": "Documents related to power of attorney",
+    "Complaint": "Documents related to litigation"
 }
+
+contract_data = {}
+
 
 @app.route('/')
 def serve():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/<path:path>')
-def static_files(path):
-    return send_from_directory(app.static_folder, path)
 
+@app.route('/chat.html')
+def chat():
+    return render_template("chat.html")
+
+
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
+
+
+# WebM → WAV 변환 함수
+def convert_webm_to_wav(input_path):
+    try:
+        temp_wav = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+        wav_path = temp_wav.name
+
+        command = [
+            "ffmpeg", "-i", input_path, "-ac", "1", "-ar", "16000", "-y", wav_path
+        ]
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        if result.returncode != 0:
+            print(f"❌ FFmpeg conversion failed: {result.stderr.decode()}")
+            return None
+
+        return wav_path
+    except Exception as e:
+        print(f"❌ WebM conversion failed: {str(e)}")
+        return None
+
+
+# 🎤 음성 파일을 업로드하여 Whisper API로 텍스트 변환
 @app.route("/stt", methods=["POST"])
 def speech_to_text():
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        print("❌ Audio file does not arrive at server")
+        return jsonify({"error": "❌ Audio file does not arrive at server"}), 400
 
     file = request.files["file"]
+    print("✅ Voice file received")
 
-    response = openai.Audio.transcribe("whisper-1", file)
-    return jsonify({"text": response["text"]})
-
-@app.route('/select', methods=['POST'])
-def select():
-    data = request.get_json()
-    selection = data.get('selection')
-
-    if selection in contract_types:
-        response = f"선택하신 계약서는 '{contract_types[selection]}'입니다. 이어지는 계약서 예시 샘플을 확인해 주세요."
-    else:
-        response = "잘못된 선택입니다. 1, 2, 3 중에서 선택해 주세요."
-
-    return jsonify({"message": response})
-
-@app.route('/generate', methods=['POST'])
-def generate_contract():
-    data = request.get_json()
-    selection = data.get('selection')
-    extracted_fields = data.get('extracted_fields', {})
-
-    if selection not in contract_types:
-        return jsonify({"error": "잘못된 선택입니다. 1, 2, 3 중에서 선택해 주세요."})
-
-    contract_type = contract_types[selection]
-    template_prompt = f"'{contract_type}'의 표준 계약서를 작성해 주세요."
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".webm")
+    temp_file_path = temp_file.name
+    file.save(temp_file_path)
+    print(f"📂 Saved WebM files: {temp_file_path}")
 
     try:
-        template_response = openai.chat.completions.create(
+        # 파일 크기 제한 (5MB 초과 시 에러 반환)
+        file_size = os.path.getsize(temp_file_path) / (1024 * 1024)
+        if file_size > 5:
+            return jsonify({"error": "The file size is too large. Please upload under 5MB."}), 400
+
+        # 파일 유효성 검사
+        if not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0:
+            print("❌ WebM file is invalid.")
+            return jsonify({"error": "WebM file is invalid. Please record again."}), 400
+
+        # WebM → WAV 변환
+        wav_path = convert_webm_to_wav(temp_file_path)
+        if not wav_path:
+            return jsonify({"error": "WebM → WAV conversion failed. Please make sure it is a valid WebM file."}), 400
+
+        print(f"🔄 Converted WAV files: {wav_path}")
+
+        # Whisper 변환 시작
+        print("🎤 Start Whisper conversion")
+        with open(wav_path, "rb") as audio_file:
+            response = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language=""
+            )
+
+        transcribed_text = response.text
+        print(f"📜 transcribed text: {transcribed_text}")
+
+        # 계약서 유형 및 필수 항목 분석 추가
+        contract_analysis = analyze_contract_data(transcribed_text)
+
+        return jsonify({"text": transcribed_text, "analysis": contract_analysis})
+
+    except Exception as e:
+        print(f"❌ Server error occurred: {str(e)}")
+        return jsonify({"error": f"Server error occurred: {str(e)}"}), 500
+
+    finally:
+        # 임시 파일 삭제
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        if wav_path and os.path.exists(wav_path):
+            os.remove(wav_path)
+
+
+def analyze_contract_data(text):
+    prompt = f"""
+    There may be one or two people in a conversation.
+    If it is two people, understand their relationship well in the conversation.
+    Analyze the following conversation to determine the type of contract and information required.
+    Please update your information in the appropriate place in your contract.
+
+    대화 내용:
+    {text}
+
+    결과 형식:
+    {{
+        "contract_type": "Contract type",
+        "required_fields": ["Required field1", "Required field2", ...]
+        "user_information": ["User entry1", "User entry2", ...]
+    }}
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a contract analysis expert."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=500,
+        temperature=0.7
+    )
+
+    try:
+        contract_data = json.loads(response.choices[0].message.content.strip())
+        return contract_data
+    except json.JSONDecodeError:
+        return {"error": "❌ An error occurred while analyzing contract data."}
+
+
+@app.route('/chatbot-response', methods=['POST'])
+def chatbot_response():
+    try:
+        data = request.json
+        user_message = data.get('message', '')
+        source = data.get('source', '')
+
+        if source == "button":
+            contract_type = user_message
+        else:
+            contract_type = identify_contract_type(user_message)
+            if not contract_type:
+                contract_type = suggest_contract_type(user_message)
+                if not contract_type:
+                    return jsonify({"error": "❌ An error occurred while determining the contract type."})
+
+        required_fields = get_contract_required_fields(contract_type)
+
+        if not isinstance(required_fields, list):
+            required_fields = ["⚠️Error retrieving required items."]  # 오류 발생 시 기본 메시지 제공
+
+        contract_content = generate_contract_content(contract_type)
+
+        if not contract_content or contract_content.startswith("❌"):
+            return jsonify({"error": "Contract creation failed"}), 500
+
+        contract_data[contract_type] = contract_content
+
+        # ✅ 선택된 계약서 유형을 전역 변수로 저장
+        global selectedContractType
+        selectedContractType = contract_type
+
+        response_data = {
+            "contract_type": contract_type,
+            "required_fields": format_required_fields(required_fields),  # 필드 정리
+            "contract": contract_content,
+            "suggested_contract": contract_type if source == "search" else None
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        return jsonify({"error": f"❌ Server error occurred: {str(e)}"}), 500
+
+
+def identify_contract_type(user_input):
+    """ 사용자의 입력에서 계약서 유형을 감지 """
+    for contract in contract_types.keys():
+        if contract in user_input:
+            return contract
+    return None
+
+
+def suggest_contract_type(user_input):
+    prompt = f"User entered '{user_input}'. Recommend relevant contracts."
+
+    try:
+        response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": template_prompt}
+                {"role": "system", "content": "Your are a contract recommendation system."},
+                {"role": "user", "content": prompt}
             ],
             max_tokens=1000,
             temperature=0.7
         )
-        contract_template = template_response.choices[0].message.content.strip()
 
-        if extracted_fields:
-            update_prompt = f"""
-            다음 계약서 템플릿에 주어진 JSON 데이터의 값들을 적절한 위치에 삽입해주세요.
+        suggested_contract = response.choices[0].message.content.strip()
+        return suggested_contract
 
-            계약서 템플릿:
-            {contract_template}
+    except Exception:
+        return None
 
-            JSON 데이터:
-            {json.dumps(extracted_fields, ensure_ascii=False)}
 
-            요구사항:
-            1. JSON 데이터의 각 필드를 계약서의 적절한 위치에 삽입해주세요.
-            2. 데이터가 없는 필드는 '[필드명]' 형식으로 남겨두세요.
-            3. 계약서의 전체적인 형식과 구조는 유지해주세요.
-            """
+@app.route('/input-fields', methods=['POST'])
+def get_contract_required_fields(contract_type):
+    prompt = f"'{contract_type}' Provide the input items required to create a contract in a list format."
 
-            update_response = openai.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": update_prompt}
-                ],
-                max_tokens=1500,
-                temperature=0.7
-            )
-            updated_contract = update_response.choices[0].message.content.strip()
-            return jsonify({"contract": updated_contract})
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": "This is a contract field provision system."},
+                      {"role": "user", "content": prompt}],
+            max_tokens=1000,
+            temperature=0.7
+        )
 
-        return jsonify({"contract": contract_template})
+        fields_text = response.choices[0].message.content.strip()
+        fields_list = fields_text.split("\n")  # ✅ 리스트 변환
+
+        # 🔍 리스트 내부에 `Response` 객체가 있는지 확인하고, 문자열만 남기기
+        fields_list = [str(field) for field in fields_list if isinstance(field, str)]
+
+        return fields_list  # ✅ JSON이 아니라 순수한 리스트를 반환
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return []
+
+
+def generate_contract_content(contract_type):
+    prompt = f"Please fill out a standard contract of ‘{contract_type}’. Organize it in a way that makes it look nice and present it to you."
+
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": " Your are a contract creation assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"❌ Error retrieving contract sample: {str(e)}"
+
+
+def format_required_fields(required_fields):
+    if not isinstance(required_fields, list):
+        return "⚠️ Error retrieving required fields."
+
+    # 🔍 `required_fields` 내의 요소가 모두 문자열인지 확인하고 변환
+    required_fields = [str(field) for field in required_fields if isinstance(field, str)]
+
+    return "\n".join(required_fields)  # ✅ 문자열이 아닌 데이터는 포함하지 않음
+
+
+def fill_contract_with_fields(contract, extracted_fields):
+    prompt = f"""
+    Please create a completed contract by reflecting the JSON data provided in the following contract draft.
+
+    contract draft:
+    {contract}
+
+    JSON data:
+    {json.dumps(extracted_fields, ensure_ascii=False)}
+
+    Requirements:
+    - Insert each value of JSON data into the appropriate context.
+    - Keep fields without data in the ‘[field name]’ format.
+    - Please refine the flow of the contract sentences naturally.
+    """
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "system", "content": "Your are a contract update system."},
+                  {"role": "user", "content": prompt}],
+        max_tokens=1500,
+        temperature=0.7
+    )
+    return response.choices[0].message.content.strip()
+
+
+@app.route('/download', methods=['GET'])
+def generate_contract_file():
+    # 🔍 현재 계약서 타입 가져오기
+    contract_type = selectedContractType  # 현재 선택된 계약서 유형
+    if not contract_type:
+        return jsonify({"error": "No contract type selected."}), 400
+
+    # 🔍 계약서 내용 가져오기
+    contract_text = contract_data.get(contract_type, "No contract content available.")
+
+    # 🔍 계약서 내용이 존재하는지 확인
+    if contract_text == "No contract content available.":
+        return jsonify({"error": "No contract content found."}), 400
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_file:
+        file_path = temp_file.name
+        doc = Document()
+
+        # ✅ 실제 계약서 내용을 DOCX에 저장
+        doc.add_paragraph(contract_text)
+
+        doc.save(file_path)
+
+    return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path), as_attachment=True)
+
 
 @app.route('/update-contract', methods=['POST'])
 def update_contract():
@@ -117,30 +353,35 @@ def update_contract():
     extracted_fields = data.get('extracted_fields', {})
 
     if not current_contract or not extracted_fields:
-        return jsonify({"error": "계약서 내용과 필드 데이터가 필요합니다."})
+        return jsonify({"error": "Contract details and field data are required."})
 
     try:
         update_prompt = f"""
-        다음 계약서의 내용을 주어진 JSON 데이터를 이용해 업데이트해주세요.
+        Please update the contents of the following contract using the given JSON data.
 
-        현재 계약서:
+        Current contract:
         {current_contract}
 
-        JSON 데이터:
+        JSON data:
         {json.dumps(extracted_fields, ensure_ascii=False)}
+
+        Requirements:
+        1. Insert the value of JSON data into the appropriate location in the contract.
+        2. Keep fields without data in the ‘[field name]’ format.
+        3. Edit the contract sentences so that they flow naturally.
         """
 
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": "You are a legal contract assistant."},
                 {"role": "user", "content": update_prompt}
             ],
             max_tokens=1500,
             temperature=0.7
         )
         updated_contract = response.choices[0].message.content.strip()
-        
+
         # Word 파일 생성
         doc = Document()
         doc.add_paragraph(updated_contract)
@@ -152,38 +393,82 @@ def update_contract():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-@app.route('/input-fields', methods=['POST'])
-def get_input_fields():
+
+@app.route("/generate", methods=["POST"])
+def generate_contract():
     data = request.get_json()
     selection = data.get('selection')
+    extracted_fields = data.get('extracted_fields', {})
 
     if selection not in contract_types:
-        return jsonify({"error": "잘못된 선택입니다. 1, 2, 3 중에서 선택해 주세요."})
+        return jsonify({"error": "It's a wrong choice. Please select the correct contract type."})
 
     contract_type = contract_types[selection]
-    prompt = f"'{contract_type}'의 내용을 기반으로 중요한 입력 항목 5~10개를 추출해 주세요."
+    template_prompt = f"Please fill out a standard contract of ‘{contract_type}’."
 
     try:
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": template_prompt}
             ],
-            max_tokens=500,
+            max_tokens=1000,
             temperature=0.7
         )
-        fields_text = response.choices[0].message.content.strip()
-        fields = fields_text.split('\n')
 
-        request_message = f"'{contract_type}'을 작성하기 위해 다음 항목을 입력해 주세요:\n\n"
-        for field in fields:
-            request_message += f"- {field}\n"
+        contract_template = response.choices[0].message.content.strip()
 
-        return jsonify({"message": request_message})
+        if extracted_fields:
+            update_prompt = f"""
+            Please insert the values ​​of the JSON data given in the following contract template into the appropriate positions.
 
+            Contract template:
+            {contract_template}
+
+            JSON data:
+            {json.dumps(extracted_fields, ensure_ascii=False)}
+
+            Requirements:
+            1. Insert each field of JSON data into the appropriate position in the contract.
+            2. Leave fields without data in the ‘[field name]’ format.
+            3. Please maintain the overall format and structure of the contract.
+            """
+
+            update_response = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": update_prompt}
+                ],
+                max_tokens=1500,
+                temperature=0.7
+            )
+
+            updated_contract = update_response.choices[0].message.content.strip()
+            return jsonify({"contract": updated_contract})
+
+        return jsonify({"contract": contract_template})
     except Exception as e:
         return jsonify({"error": str(e)})
+
+
+@app.route('/generate', methods=['POST'])
+def generate_contract_api():
+    data = request.get_json()
+    selection = data.get('selection')
+
+    if selection not in contract_types:
+        return jsonify({"error": "❌ An error occurred while determining the contract type. Please try again."})
+
+    contract_content, required_fields = generate_contract(selection)
+
+    return jsonify({
+        "contract": contract_content,
+        "required_fields": required_fields,
+        "message": "📌 The information required in the contract is as follows:"
+    })
+
 
 @app.route('/extract-fields', methods=['POST'])
 def extract_fields():
@@ -191,9 +476,9 @@ def extract_fields():
     user_input = data.get('user_input')
 
     prompt = (
-        "다음 문장에서 계약서에 포함되어야 할 항목을 JSON 형태로 반환해 주세요:\n"
-        "반드시 유효한 JSON 형식으로 출력해야 합니다. JSON 외의 추가적인 텍스트를 포함하지 마세요."
-        f"문장: {user_input}"
+        "Please return the items that should be included in the contract in the following sentence in JSON format:\n"
+        "Output must be in valid JSON format. Do not include additional text other than JSON.\n"
+        f"Sentence: {user_input}"
     )
 
     try:
@@ -203,31 +488,24 @@ def extract_fields():
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=500,
+            max_tokens=1000,
             temperature=0.7
         )
+
         extracted_data = response.choices[0].message.content.strip()
-        # JSON 형태의 데이터만 추출
         json_match = re.search(r'\{.*\}', extracted_data, re.DOTALL)
-        
+
         if json_match:
-            json_data = json.loads(json_match.group())  # JSON 변환
+            json_data = json.loads(json_match.group())
             return jsonify({"extracted_fields": json_data})
         else:
-            return jsonify({"error": "응답에서 유효한 JSON 데이터를 찾을 수 없습니다.", "raw_response": extracted_data})
+            return jsonify({"error": "❌ No valid JSON data found.", "raw_response": extracted_data})
 
     except json.JSONDecodeError:
-        return jsonify({"error": "OpenAI 응답이 유효한 JSON 형식이 아닙니다."})
+        return jsonify({"error": "❌ OpenAI response is not in valid JSON format."})
     except Exception as e:
         return jsonify({"error": str(e)})
 
-@app.route('/download', methods=['GET'])
-def download_contract():
-    file_path = 'completed_contract.docx'
-    if os.path.exists(file_path):
-        return send_from_directory('.', file_path, as_attachment=True)
-    else:
-        return jsonify({"error": "다운로드할 파일이 없습니다."})
 
 if __name__ == '__main__':
     app.run(debug=True)
