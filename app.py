@@ -1,4 +1,4 @@
-from flask import Flask, render_template, send_from_directory, jsonify, request
+from flask import Flask, render_template, send_from_directory, jsonify, request, session
 from flask_cors import CORS
 import os
 import openai
@@ -14,7 +14,7 @@ CORS(app)
 
 # 환경 변수에서 API 키 로드
 api_key = os.environ.get("OPENAI_API_KEY")
-
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
 client = OpenAI(api_key=api_key)
 
@@ -46,6 +46,39 @@ def chat():
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)
+
+
+def detect_language(text):
+    prompt = f"Detect the language of the following text and return only the language code (e.g., 'en', 'ko', 'es', 'fr').\n\n{text}"
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=10,
+            temperature=0.3
+        )
+        detected_language = response.choices[0].message.content.strip()
+        session["user_language"] = detected_language
+
+        return detected_language
+
+    except Exception as e:
+        print(f"❌ Language detection failed: {str(e)}")
+        return "en"  # 기본 언어를 영어로 설정
+
+
+@app.route('/detect-language', methods=['POST'])
+def detect_language_api():
+    """검색창에서 입력한 텍스트의 언어를 감지하는 API"""
+    data = request.json
+    text = data.get('text', '')
+
+    if not text:
+        return jsonify({"error": "No text provided."}), 400
+
+    detected_language = detect_language(text)
+    return jsonify({"language": detected_language})
 
 
 # WebM → WAV 변환 함수
@@ -112,12 +145,18 @@ def speech_to_text():
             )
 
         transcribed_text = response.text
+        detected_language = detect_language(transcribed_text)
         print(f"📜 transcribed text: {transcribed_text}")
 
         # 계약서 유형 및 필수 항목 분석 추가
         contract_analysis = analyze_contract_data(transcribed_text)
 
-        return jsonify({"text": transcribed_text, "analysis": contract_analysis})
+        return jsonify({
+            "text": transcribed_text,
+            "analysis": contract_analysis,
+            "language": detected_language
+        })
+
 
     except Exception as e:
         print(f"❌ Server error occurred: {str(e)}")
@@ -172,6 +211,13 @@ def chatbot_response():
         data = request.json
         user_message = data.get('message', '')
         source = data.get('source', '')
+        detected_language = data.get('language', 'en')
+
+        # ✅ 사용자가 처음 입력한 경우, 언어 감지 및 세션 저장
+        if "user_language" not in session:
+            detected_language = detect_language(user_message)
+        else:
+            detected_language = session["user_language"]
 
         if source == "button":
             contract_type = user_message
@@ -202,6 +248,7 @@ def chatbot_response():
             "contract_type": contract_type,
             "required_fields": format_required_fields(required_fields),  # 필드 정리
             "contract": contract_content,
+            "language": detected_language,
             "suggested_contract": contract_type if source == "search" else None
         }
 
@@ -220,7 +267,8 @@ def identify_contract_type(user_input):
 
 
 def suggest_contract_type(user_input):
-    prompt = f"User entered '{user_input}'. Recommend relevant contracts."
+    language = session["user_language"]
+    prompt = f"User entered '{user_input}'. Recommend relevant contracts. Please respond in {language}."
 
     try:
         response = openai.chat.completions.create(
@@ -242,7 +290,8 @@ def suggest_contract_type(user_input):
 
 @app.route('/input-fields', methods=['POST'])
 def get_contract_required_fields(contract_type):
-    prompt = f"'{contract_type}' Provide the input items required to create a contract in a list format."
+    language = session["user_language"]
+    prompt = f"'{contract_type}' Provide the input items required to create a contract in a list format. Please respond in {language}."
 
     try:
         response = openai.chat.completions.create(
@@ -265,8 +314,11 @@ def get_contract_required_fields(contract_type):
         return []
 
 
-def generate_contract_content(contract_type):
-    prompt = f"Please fill out a standard contract of ‘{contract_type}’. Organize it in a way that makes it look nice and present it to you."
+def generate_contract_content(contract_type, language="en"):
+    language = session["user_language"]
+    prompt = f"Please fill out a standard contract of ‘{contract_type}’ in {language}." \
+             f"Organize it in a way that makes it look nice and present it to you." \
+             f"Please respond in {language}."
 
     try:
         response = openai.chat.completions.create(
@@ -296,8 +348,10 @@ def format_required_fields(required_fields):
 
 
 def fill_contract_with_fields(contract, extracted_fields):
+    language = session["user_language"]
     prompt = f"""
     Please create a completed contract by reflecting the JSON data provided in the following contract draft.
+    Please respond in {language}.
 
     contract draft:
     {contract}
@@ -351,6 +405,7 @@ def update_contract():
     data = request.get_json()
     current_contract = data.get('current_contract', '')
     extracted_fields = data.get('extracted_fields', {})
+    language = session["user_language"]
 
     if not current_contract or not extracted_fields:
         return jsonify({"error": "Contract details and field data are required."})
@@ -358,6 +413,7 @@ def update_contract():
     try:
         update_prompt = f"""
         Please update the contents of the following contract using the given JSON data.
+        Please respond in {language}.
 
         Current contract:
         {current_contract}
@@ -399,12 +455,13 @@ def generate_contract():
     data = request.get_json()
     selection = data.get('selection')
     extracted_fields = data.get('extracted_fields', {})
+    language = session["user_language"]
 
     if selection not in contract_types:
         return jsonify({"error": "It's a wrong choice. Please select the correct contract type."})
 
     contract_type = contract_types[selection]
-    template_prompt = f"Please fill out a standard contract of ‘{contract_type}’."
+    template_prompt = f"Please fill out a standard contract of ‘{contract_type}’. Please respond in {language}."
 
     try:
         response = openai.chat.completions.create(
@@ -421,7 +478,8 @@ def generate_contract():
 
         if extracted_fields:
             update_prompt = f"""
-            Please insert the values ​​of the JSON data given in the following contract template into the appropriate positions.
+            Please insert the values of the JSON data given in the following contract template into the appropriate positions.
+            Please respond in {language}.
 
             Contract template:
             {contract_template}
@@ -474,11 +532,13 @@ def generate_contract_api():
 def extract_fields():
     data = request.get_json()
     user_input = data.get('user_input')
+    language = session["user_language"]
 
     prompt = (
         "Please return the items that should be included in the contract in the following sentence in JSON format:\n"
         "Output must be in valid JSON format. Do not include additional text other than JSON.\n"
         f"Sentence: {user_input}"
+        f"Please respond in {language}."
     )
 
     try:
