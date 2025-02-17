@@ -1,7 +1,20 @@
-/* Google 스타일 홈페이지 */
-.google-container {
+/* ✅ 타이틀을 상단에 고정 */
+.header-container {
     text-align: center;
-    margin-top: 100px;
+    position: absolute;
+    top: 300px; /* ✅ 화면 상단에서 300px 떨어진 위치 */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+}
+
+/* ✅ 검색창 및 버튼 중앙 배치 */
+.main-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh; /* ✅ 검색창은 여전히 화면 중앙 유지 */
 }
 
 /* 🌟 구글 크롬 스타일 검색창 */
@@ -9,10 +22,9 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-top: 30px;
     position: relative;
     width: 600px; /* ✅ 구글 크롬과 비슷한 너비 */
-    margin: auto;
+    margin: 20px auto;
 }
 
 #search-input {
@@ -54,6 +66,8 @@
 
 /* Quick Links */
 .quick-links {
+    display: flex;
+    justify-content: center;
     margin-top: 20px;
 }
 
