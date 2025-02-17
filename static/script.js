@@ -5,6 +5,31 @@ let mediaRecorder;
 let audioChunks = [];
 let isRecording = false;
 
+// ✅ 언어 감지 후 저장
+function saveLanguage(language) {
+    localStorage.setItem("user_language", language);
+}
+
+// ✅ 사용자의 검색 입력에서 언어 감지 요청
+function detectLanguageAndSearch(userInput) {
+    fetch('/detect-language', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: userInput })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.language) {
+            localStorage.setItem("user_language", data.language); // ✅ 감지된 언어를 저장
+        }
+        navigateToChat(userInput, 'search');
+    })
+    .catch(error => {
+        console.error("❌ Language detection failed:", error);
+        navigateToChat(userInput, 'search');
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     console.log("✅ Document Loaded!");
 
@@ -75,7 +100,7 @@ function stopRecording() {
         mediaRecorder.stop();
     }
     isRecording = false;
-    document.getElementById('record-btn').textContent = "📝";
+    document.getElementById('record-btn').textContent = "🎤";
     console.log("⏹️ Recording has stopped. Converting to text...");
 }
 
@@ -101,6 +126,10 @@ function sendAudioToServer() {
     .then(data => {
         console.log("📥 server response data:", data);
 
+        if (data.language) {
+            saveLanguage(data.language); // ✅ 감지된 언어 저장
+        }
+
         if (data.error) {
             console.error(`❌ An error occurred: ${data.error}`);
             alert("Voice conversion failed. server error: " + data.error);
@@ -108,8 +137,9 @@ function sendAudioToServer() {
             console.error("❌ No text converted.");
             alert("The speech conversion result is empty.");
         } else {
-            console.log(`📜 transcribed text: ${data.text}`);
-            window.location.href = `/chat.html?query=${encodeURIComponent(data.text)}&source=voice`;
+            const detectedLanguage = data.language || 'en';
+            console.log(`📜 Transcribed text: ${data.text} (Language: ${detectedLanguage})`);
+            navigateToChat(data.text, 'voice', detectedLanguage);
         }
     })
     .catch(error => {
@@ -188,9 +218,8 @@ function startChatFromSearch() {
         return;
     }
 
-    const targetUrl = `/chat.html?query=${encodeURIComponent(query)}&source=search`;
-    console.log(`🔗 Go to page: ${targetUrl}`);
-    navigateToChat(query, 'search');
+    // ✅ 언어 감지 후 챗봇 요청
+    detectLanguageAndSearch(query);
 }
 
 // ✅ 챗봇 페이지로 이동하는 함수 (검색 & 버튼 클릭)
@@ -213,6 +242,8 @@ function requestChatbotResponseFromButton(contractType) {
     appendMessage(`📑 You have selected ${contractType}.`, 'bot');
     appendMessage("📌 I am analyzing the information required for the contract...", 'bot');
 
+    let detectedLanguage = localStorage.getItem("user_language") || "en"; // 기본값 영어
+
     fetch('/chatbot-response', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,6 +251,9 @@ function requestChatbotResponseFromButton(contractType) {
     })
     .then(response => response.json())
     .then(data => {
+        if(data.language){
+            saveLanguage(data.language);
+        }
         handleChatbotResponse(data);
     })
     .catch(error => {
@@ -240,6 +274,8 @@ function requestChatbotResponseFromSearch(userMessage) {
     appendMessage(`🔍 ${userMessage}`, 'user');
     appendMessage("📌 Looking for relevant contracts...", 'bot');
 
+    let detectedLanguage = localStorage.getItem("user_language") || "en"; // 기본값 영어
+
     fetch('/chatbot-response', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -247,6 +283,9 @@ function requestChatbotResponseFromSearch(userMessage) {
     })
     .then(response => response.json())
     .then(data => {
+        if (data.language) {
+            saveLanguage(data.language); // ✅ 감지된 언어 저장
+        }
         handleChatbotResponse(data);
     })
     .catch(error => {
