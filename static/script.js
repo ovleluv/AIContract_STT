@@ -60,7 +60,7 @@ function startRecording() {
             mediaRecorder.start();
 
             isRecording = true;
-            document.getElementById('record-btn').textContent = "⏹️ Stop Recording";
+            document.getElementById('record-btn').textContent = "⏹️";
             console.log("🎙️ Start recording...");
         })
         .catch(error => {
@@ -75,7 +75,7 @@ function stopRecording() {
         mediaRecorder.stop();
     }
     isRecording = false;
-    document.getElementById('record-btn').textContent = "🎤 voice input";
+    document.getElementById('record-btn').textContent = "📝";
     console.log("⏹️ Recording has stopped. Converting to text...");
 }
 
