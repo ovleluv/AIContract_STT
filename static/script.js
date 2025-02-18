@@ -1,5 +1,6 @@
 // ✅ 전역 변수 선언
-let currentContract = ""; // 계약서 내용을 저장할 변수
+let currentContract = []; // 계약서 예시 리스트
+let selectedContractIndex = 0; // 선택된 계약서의 인덱스
 let selectedContractType = "";  // 선택된 계약서 유형
 let mediaRecorder;
 let audioChunks = [];
@@ -302,27 +303,53 @@ function handleChatbotResponse(data) {
         return;
     }
 
-    if (data.suggested_contract) {
-        appendMessage(`📌 ${data.suggested_contract}`, 'bot');
+    // 🔹 계약서 목록 출력
+    if (data.contract_details && data.contract_details.length > 0) {
+        currentContracts = data.contract_details.map(contract => ({
+            type: contract.contract_type,
+            content: contract.contract_sample
+        }));
+
+        selectedContractIndex = 0;
+        selectedContractType = currentContracts[0].type;
+
+        currentContracts.forEach((contract, index) => {
+            appendMessage(`📜 **${contract.type}** (Option ${index + 1})`, 'bot');
+            appendMessage(`${contract.content}`, 'bot', true);
+        });
+
+        // ✅ 안내 메시지 추가
+        appendMessage("📌 Please select one of the above contract options.", 'bot');
+
+        // ✅ 모든 옵션 버튼을 한 번에 추가
+        currentContracts.forEach((contract, index) => {
+            addSelectButton(index);
+        });
     }
+}
 
-    if (data.required_fields) {
-        appendMessage("📌 Information needed to prepare a contract:", 'bot');
-        appendMessage(`${data.required_fields}`, 'bot');  // 한 개의 메시지로 출력
-    }
 
-    if (data.contract) {
-        currentContract = data.contract; // ✅ 계약서 내용 저장
-        selectedContractType = data.contract_type; // ✅ 계약서 유형 저장
+// ✅ 계약서 선택 버튼 추가
+function addSelectButton(index) {
+    const chatBox = document.getElementById('chat-box');
 
-        // ✅ <pre> 태그가 중복으로 들어가지 않도록 정리
-        let cleanedContract = data.contract.replace(/<pre>/g, "").replace(/<\/pre>/g, "");
+    // ✅ 옵션 버튼을 담을 컨테이너 생성
+    let buttonContainer = document.createElement('div');
+    buttonContainer.classList.add('button-container');
 
-        appendMessage("📜 Sample contract example:", 'bot');
-        appendMessage(`${cleanedContract}`, 'bot', true);
-        addDownloadButton();
-        // 사용자 입력
-    }
+    const selectButton = document.createElement('button');
+    selectButton.textContent = `✅ Select Option ${index + 1}`;
+    selectButton.classList.add('select-btn');
+
+    selectButton.addEventListener('click', function () {
+        selectedContractIndex = index;
+        selectedContractType = currentContracts[index].type;
+        appendMessage(`✅ You selected: ${selectedContractType} (Option ${index + 1})`, 'bot');
+        appendMessage("Please enter the information you want to add to the contract.", 'bot')
+    });
+
+    buttonContainer.appendChild(selectButton);
+    chatBox.appendChild(buttonContainer);
 }
 
 // ✅ 채팅창에 메시지 추가
@@ -386,102 +413,122 @@ function extractContractFields() {
 
 // ✅ 계약서 업데이트 요청
 function updateContract(extractedFields) {
-    if (!currentContract) {
-        console.error("There are currently no contract details.");
-        appendMessage("❌ Contract update failed.", 'bot');
+    console.log("🔍 Extracted Fields:", extractedFields);
+    console.log("🔍 Current Contracts:", currentContracts);
+    console.log("🔍 Selected Contract Index:", selectedContractIndex);
+
+    if (!currentContracts.length) {
+        appendMessage("❌ No contracts available. Please generate a contract first.", 'bot');
         return;
     }
 
-    appendMessage("📌 Updating your contract...", 'bot');
+    if (!extractedFields || Object.keys(extractedFields).length === 0) {
+        appendMessage("❌ No extracted data to update.", 'bot');
+        return;
+    }
 
-    // ✅ 전송 데이터 로그 출력
-    console.log("data to transfer:", JSON.stringify({
-        current_contract: currentContract,
-        contract_type: selectedContractType,
-        extracted_fields: extractedFields
-    }));
+    if (selectedContractIndex === undefined || selectedContractIndex < 0 || selectedContractIndex >= currentContracts.length) {
+        appendMessage("❌ Invalid contract selection.", 'bot');
+        return;
+    }
+
+    const contractToUpdate = currentContracts[selectedContractIndex].content;
+    const contractType = currentContracts[selectedContractIndex].type;
+
+    if (!contractToUpdate || contractToUpdate.trim() === "") {
+        appendMessage("❌ Contract data is missing.", 'bot');
+        return;
+    }
+
+    console.log("📤 Sending contract update request to server...");
+    console.log("📄 Contract to Update:", contractToUpdate);
+    console.log("📜 Contract Type:", contractType);
+
+    appendMessage("📌 Updating your contract...", 'bot');
 
     fetch('/update-contract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            current_contract: currentContract,
-            contract_type: selectedContractType,
+            current_contract: contractToUpdate,
+            contract_type: contractType,
             extracted_fields: extractedFields
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log("📥 Server Response Status:", response.status);
+        return response.json();
+    })
     .then(data => {
-        if (data.contract) {
-            currentContract = data.contract;
-            appendMessage("📜 updated contract:", 'bot');
+        console.log("📥 Server Response Data:", data);
+
+        if (data.error) {
+            appendMessage("❌ " + data.error, 'bot');
+        } else if (data.contract) {
+            currentContracts[selectedContractIndex].content = data.contract;
+            appendMessage("📜 Updated Contract:", 'bot');
             appendMessage(`${data.contract}`, 'bot', true);
-            addDownloadButton();
+            addDownloadButton(contractType, data.contract);
         } else {
             appendMessage("❌ Contract update failed.", 'bot');
         }
     })
     .catch(error => {
-        console.error("sever error:", error);
+        console.error("❌ Server error:", error);
         appendMessage("❌ A server error occurred.", 'bot');
     });
 }
 
-// ✅ 계약서 다운로드 기능 추가
-function downloadContract() {
-    fetch('/download', { method: 'GET' })
-    .then(response => response.ok ? response.blob() : Promise.reject())
+// ✅ 계약서 다운로드 요청
+function downloadSpecificContract(contractType, contractText) {
+    if (!contractText) {
+        appendMessage("❌ No contract content available for download.", 'bot');
+        return;
+    }
+
+    fetch('/download-contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contract_type: contractType,
+            contract_text: contractText
+        })
+    })
+    .then(response => response.ok ? response.blob() : Promise.reject("Failed to download contract."))
     .then(blob => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'completed_contract.docx';
+        a.download = `${contractType}_contract.docx`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
     })
-    .catch(() => appendMessage("❌ The contract file cannot be downloaded.", 'bot'));
+    .catch(error => {
+        console.error("❌ Error downloading contract:", error);
+        appendMessage("❌ The contract file cannot be downloaded.", 'bot');
+    });
 }
 
-// ✅ 다운로드 버튼 추가
-function addDownloadButton() {
+// ✅ 계약서 다운로드 버튼 추가
+function addDownloadButton(contractType, contractText) {
     const chatBox = document.getElementById('chat-box');
 
-    // 기존 버튼 제거 (중복 생성 방지)
-    const existingButton = document.getElementById('download-btn');
-    if (existingButton) existingButton.remove();
-
+    // 다운로드 버튼 생성
     const downloadButton = document.createElement('button');
-    downloadButton.id = 'download-btn';
-    downloadButton.textContent = "📥 Download contract";
+    downloadButton.textContent = `📥 Download`;
+    downloadButton.classList.add('download-btn');
 
-    downloadButton.addEventListener('click', () => {
-        downloadButton.disabled = true;
-        downloadButton.textContent = "⏳ Downloading...";
-
-        fetch('/download', { method: 'GET' })
-        .then(response => response.ok ? response.blob() : Promise.reject())
-        .then(blob => {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'completed_contract.docx';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-
-            downloadButton.textContent = "📥 Download complete!";
-            setTimeout(() => downloadButton.textContent = "📥 Download contract", 3000);
-        })
-        .catch(() => {
-            appendMessage("❌ The contract file cannot be downloaded.", 'bot');
-            downloadButton.textContent = "📥 Download contract";
-        })
-        .finally(() => downloadButton.disabled = false);
+    // 다운로드 버튼 클릭 이벤트 추가
+    downloadButton.addEventListener('click', function () {
+        downloadSpecificContract(contractType, contractText);
     });
 
-    chatBox.appendChild(document.createElement('br'));
-    chatBox.appendChild(downloadButton);
+    // ✅ 다운로드 버튼을 챗봇 메시지와 자연스럽게 배치
+    let buttonContainer = document.createElement('div');
+    buttonContainer.classList.add('button-container');
+    buttonContainer.appendChild(downloadButton);
+
+    chatBox.appendChild(buttonContainer);
 }
