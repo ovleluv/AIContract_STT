@@ -212,7 +212,7 @@ def chatbot_response():
         if "user_language" not in session:
             detected_language = detect_language(user_message)
         else:
-            detected_language = session["user_language"]
+            detected_language = session.get("user_language", "en")
 
             # 🔍 사용자가 입력한 키워드를 기반으로 추천 계약서 목록 가져오기
             suggested_contracts = suggest_contracts_list(user_message)
