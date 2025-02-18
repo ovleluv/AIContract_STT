@@ -14,7 +14,7 @@ CORS(app)
 
 # 환경 변수에서 API 키 로드
 api_key = os.environ.get("OPENAI_API_KEY")
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", secret_key)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
 client = OpenAI(api_key=api_key)
 
