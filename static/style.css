@@ -133,18 +133,16 @@ body {
     margin-bottom: 15px;
 }
 
-/* ✅ 챗봇 및 사용자 메시지 스타일 */
-.bot-message,
-.user-message {
-    padding: 10px;
-    border-radius: 10px;
+/* ✅ 메시지 스타일 */
+.bot-message, .user-message {
+    padding: 12px;
+    border-radius: 12px;
     max-width: 75%;
     font-size: 15px;
     line-height: 1.6;
     word-wrap: break-word;
-    margin-bottom: 10px;
     overflow-wrap: break-word;
-    white-space: pre-wrap; /* ✅ 텍스트가 박스를 벗어나지 않도록 설정 */
+    white-space: pre-wrap;
 }
 
 /* ✅ 사용자 메시지 */
@@ -157,6 +155,14 @@ body {
 .bot-message {
     background-color: #e3f2fd;
     align-self: flex-start;
+}
+
+/* ✅ 옵션 버튼이 메시지와 자연스럽게 연결되도록 스타일링 */
+.bot-message, .button-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
 }
 
 /* ✅ 계약서 샘플 내용이 박스를 벗어나지 않도록 설정 */
@@ -277,20 +283,51 @@ body {
     transform: scale(1.1);
 }
 
-/* ✅ 계약서 다운로드 버튼 스타일 */
-#download-btn {
-    margin-top: 15px;
-    padding: 10px 15px;
-    font-size: 16px;
-    border: none;
-    border-radius: 5px;
-    background-color: #4CAF50;
+/* ✅ 옵션 버튼 스타일 */
+.select-btn {
+    display: inline-block;
+    width: auto;
+    padding: 8px 14px;
+    margin: 5px 5px 0 0;
+    background-color: #007bff; /* 블루 컬러 */
     color: white;
+    border: none;
+    border-radius: 20px;
     cursor: pointer;
+    font-size: 14px;
+    text-align: center;
+    transition: background-color 0.3s ease-in-out;
 }
 
-#download-btn:hover {
-    background-color: #45a049;
+.select-btn:hover {
+    background-color: #0056b3;
+}
+
+/* ✅ 다운로드 버튼 스타일 */
+.download-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    padding: 10px 16px;
+    margin-top: 12px;
+    background-color: #28a745; /* 녹색 */
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    text-align: center;
+    transition: background-color 0.3s;
+}
+
+.download-btn:hover {
+    background-color: #218838;
+}
+
+/* ✅ 버튼 내부 아이콘 스타일 */
+.download-btn i {
+    margin-right: 8px;
 }
 
 /* ✅ 자동 스크롤 유지 */
