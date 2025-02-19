@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 🔹 음성 입력으로 넘어온 경우 자동 실행
     if (query && source === "voice") {
         console.log("🎤 음성 입력 감지됨. 자동으로 챗봇 요청 시작...");
-        requestChatbotResponseFromSearch(query);
+        requestChatbotResponseFromVoice(query);
     }
 });
 
@@ -254,7 +254,7 @@ function requestChatbotResponseFromButton(contractType) {
         if(data.language){
             saveLanguage(data.language);
         }
-        handleChatbotResponse(data);
+        handleChatbotResponse(data, "button");
     })
     .catch(error => {
         console.error("❌ Server error occurred:", error);
@@ -286,7 +286,39 @@ function requestChatbotResponseFromSearch(userMessage) {
         if (data.language) {
             saveLanguage(data.language); // ✅ 감지된 언어 저장
         }
-        handleChatbotResponse(data);
+        handleChatbotResponse(data, "search");
+    })
+    .catch(error => {
+        console.error("❌ Server error occurred:", error);
+        appendMessage("❌ A server error occurred. Please try again.", 'bot');
+    })
+    .finally(() => isFetching = false); // 요청 완료 후 상태 해제
+}
+
+// ✅ 음성 입력을 통한 챗봇 응답 요청
+function requestChatbotResponseFromVoice(userMessage) {
+    if (isFetching) {
+        appendMessage("⚠️ Your request is being processed. please wait for a moment.", 'bot');
+        return;
+    }
+    isFetching = true;
+
+    appendMessage(`🎤 ${userMessage}`, 'user');
+    appendMessage("📌 Processing your voice input...", 'bot');
+
+    let detectedLanguage = localStorage.getItem("user_language") || "en"; // 기본값 영어
+
+    fetch('/chatbot-response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage, source: 'voice' })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.language) {
+            saveLanguage(data.language); // ✅ 감지된 언어 저장
+        }
+        handleChatbotResponse(data, "voice"); // ✅ 음성 입력임을 전달
     })
     .catch(error => {
         console.error("❌ Server error occurred:", error);
@@ -296,19 +328,21 @@ function requestChatbotResponseFromSearch(userMessage) {
 }
 
 // ✅ 챗봇 응답 핸들링 함수
-function handleChatbotResponse(data) {
+function handleChatbotResponse(data, source) {
     if (data.error) {
         appendMessage("❌ " + data.error, 'bot');
         return;
     }
 
-    appendMessage(`📜 **${data.contract_type}**`, 'bot');
+    // ✅ 음성 입력이 아닌 경우에만 필수 항목 출력
+    if (source !== "voice") {
+        setTimeout(() => {
+            appendMessage("📌 **Required Information:**", 'bot');
+            appendMessage(`${data.required_fields}`, 'bot');
+        }, 3000);
+    }
+
     setTimeout(() => {
-        appendMessage("📌 **Required Information:**", 'bot');
-        appendMessage(`${data.required_fields}`, 'bot')
-    }, 3000);
-    setTimeout(() => {
-        appendMessage("📜 **Contract Template:**", 'bot');
         appendMessage(`${data.contract_sample}`, 'bot', true);
 
         currentContract = data.contract_sample;
