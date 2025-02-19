@@ -10,7 +10,7 @@ from openai import OpenAI
 import subprocess
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-CORS(app)
+CORS(app, resources={r"/*": {"origins": ["https://aicontract.kr"]}})
 
 api_key = os.environ.get("OPENAI_API_KEY")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
