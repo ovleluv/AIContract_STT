@@ -131,7 +131,6 @@ def speech_to_text():
         if not wav_path:
             return jsonify({"error": "WebM → WAV conversion failed. Please make sure it is a valid WebM file."}), 400
 
-
         # Whisper 변환 시작
         with open(wav_path, "rb") as audio_file:
             response = client.audio.transcriptions.create(
@@ -205,8 +204,6 @@ def chatbot_response():
     try:
         data = request.json
         user_message = data.get('message', '')
-        source = data.get('source', '')
-        detected_language = data.get('language', 'en')
 
         # ✅ 사용자가 처음 입력한 경우, 언어 감지 및 세션 저장
         if "user_language" not in session:
@@ -214,30 +211,20 @@ def chatbot_response():
         else:
             detected_language = session.get("user_language", "en")
 
-            # 🔍 사용자가 입력한 키워드를 기반으로 추천 계약서 목록 가져오기
-            suggested_contracts = suggest_contracts_list(user_message)
+        # ✅ 가장 관련성 높은 계약서 1개만 추천
+        contract_type = identify_contract_type(user_message)
+        if not contract_type:
+            return jsonify({"error": "❌ No relevant contract found. Please try again."})
 
-            if not suggested_contracts:
-                return jsonify({"error": "❌ No relevant contracts found. Please try again."})
-
-            # 📌 각 추천 계약서별로 필요한 정보 및 예시 샘플 생성
-            contract_details = []
-            for contract_type in suggested_contracts:
-                required_fields = get_contract_required_fields(contract_type)
-                contract_content = generate_contract_content(contract_type)
-
-                contract_details.append({
-                    "contract_type": contract_type,
-                    "required_fields": format_required_fields(required_fields),
-                    "contract_sample": contract_content
-                })
+        # ✅ 필요한 정보 & 계약서 내용 한 번에 요청 (API 호출 1회로 최적화)
+        required_fields, contract_sample = generate_contract_info(contract_type, detected_language)
 
         response_data = {
-            "suggested_contracts": suggested_contracts,
-            "contract_details": contract_details,
+            "contract_type": contract_type,
+            "required_fields": required_fields,
+            "contract_sample": contract_sample,
             "language": detected_language
         }
-
         return jsonify(response_data)
 
     except Exception as e:
@@ -245,60 +232,80 @@ def chatbot_response():
 
 
 def identify_contract_type(user_input):
-    """ 사용자의 입력에서 계약서 유형을 감지 """
-    for contract in contract_types.keys():
-        if contract in user_input:
-            return contract
-    return None
-
-
-def suggest_contracts_list(user_input):
-    """ 사용자의 입력에서 추천할 계약서 목록을 반환 """
     language = session["user_language"]
     prompt = f"""
     The user entered the following message: '{user_input}'
-    Please analyze the message and return a list of the most relevant contract types.
-    The response should be formatted as a JSON array with contract types.
+    Identify the most relevant contract type and return only one contract type in text format.
+    Do NOT return JSON. Just return the contract type name.
     Please respond in '{language}'.
 
     Example output:
-    ["Real Estate Sale Contract", "Vehicle Sale Contract", "Goods Sale Contract"]
-
-    Please respond in JSON format.
+    "Real Estate Lease Agreement"
     """
-
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a contract recommendation system."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=500,
+            messages=[{"role": "system", "content": "You are a contract recommendation system."},
+                      {"role": "user", "content": prompt}],
+            max_tokens=50,
             temperature=0.7
         )
-
-        json_match = re.search(r'\[.*\]', response.choices[0].message.content.strip(), re.DOTALL)
-
-        if json_match:
-            return json.loads(json_match.group())
-        return []
-
+        return response.choices[0].message.content.strip()
     except Exception:
-        return []  # 실패 시 빈 리스트 반환
+        return None
+
+
+def generate_contract_info(contract_type, language="en"):
+    prompt = f"""
+    Provide the required information for a '{contract_type}' and then generate a contract template.
+
+    - First, list the key information required for this contract in a clear and readable format.
+    - Then, generate a well-structured contract.
+
+    Output format:
+    ---
+    REQUIRED INFORMATION:
+    [List of required fields]
+
+    CONTRACT TEMPLATE:
+    [Structured contract template]
+
+    Do NOT return JSON format. Write everything in a human-readable format.
+    The response must be in {language}.
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": "You are a contract expert."},
+                      {"role": "user", "content": prompt}],
+            max_tokens=1200,
+            temperature=0.7
+        )
+        response_text = response.choices[0].message.content.strip()
+
+        # ✅ 응답을 "REQUIRED INFORMATION"과 "CONTRACT TEMPLATE"로 분리
+        parts = response_text.split("CONTRACT TEMPLATE:")
+        required_fields = parts[0].replace("REQUIRED INFORMATION:", "").strip()
+        contract_sample = parts[1].strip() if len(parts) > 1 else "❌ Contract template generation failed."
+
+        return required_fields, contract_sample
+    except Exception:
+        return "❌ Required fields generation failed.", "❌ Contract generation failed."
 
 
 @app.route('/input-fields', methods=['POST'])
 def get_contract_required_fields(contract_type):
     language = session["user_language"]
-    prompt = f"'{contract_type}' Provide the input items required to create a contract in a list format. Please respond in '{language}'."
+    prompt = f"'{contract_type}' requires the following information fields for completion. " \
+             f"Provide them in a list format." \
+             f"Please respond in '{language}'."
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": "This is a contract field provision system."},
                       {"role": "user", "content": prompt}],
-            max_tokens=1000,
+            max_tokens=500,
             temperature=0.7
         )
 
@@ -351,9 +358,8 @@ def fill_contract_with_fields(contract, extracted_fields):
     language = session["user_language"]
 
     prompt = f"""
-    Please update the following contract by inserting the provided JSON data in the appropriate locations.
+    Update the following contract by inserting the provided JSON data in the appropriate locations.
     Ensure the contract remains well-structured and readable.
-    Please respond in {language}.
 
     contract draft:
     {contract}
@@ -367,22 +373,34 @@ def fill_contract_with_fields(contract, extracted_fields):
     - Ensure the contract text remains naturally structured.
     - Do not include extra explanatory text such as introductions or conclusions.
     - Only return the updated contract text.
+    - Do not add extra explanations.
+    
+    Please respond in {language}.
     """
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": "Your are a contract update system."},
-                  {"role": "user", "content": prompt}],
-        max_tokens=1500,
-        temperature=0.7
-    )
-    return response.choices[0].message.content.strip()
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a contract update system."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1500,
+            temperature=0.7
+        )
+
+        updated_contract = response.choices[0].message.content.strip()
+
+        if not updated_contract or "error" in updated_contract.lower():
+            return "❌ Failed to update the contract."
+
+        return updated_contract
+
+    except Exception as e:
+        return f"❌ Error updating contract: {str(e)}"
 
 
 @app.route('/download-contract', methods=['POST'])
 def download_contract():
-    """
-    클라이언트에서 특정 계약서 내용을 전달받아 DOCX 파일로 변환 후 다운로드.
-    """
     try:
         data = request.get_json()
         contract_type = data.get('contract_type', 'contract')
@@ -391,20 +409,23 @@ def download_contract():
         if not contract_text:
             return jsonify({"error": "No contract content provided for download."}), 400
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_file:
-            file_path = temp_file.name
-            doc = Document()
+        # ✅ 문서 저장할 폴더 생성
+        temp_dir = tempfile.gettempdir()  # 임시 디렉토리 경로
+        file_path = os.path.join(temp_dir, f"{contract_type}_contract.docx")
 
-            # ✅ 계약서 내용을 DOCX 파일에 저장
-            doc.add_paragraph(contract_text)
-            doc.save(file_path)
+        # ✅ DOCX 파일 생성
+        doc = Document()
+        doc.add_paragraph(contract_text)
+        doc.save(file_path)
 
-        return send_from_directory(os.path.dirname(file_path), os.path.basename(file_path), as_attachment=True,
+        print(f"📂 Contract saved at: {file_path}")  # ✅ 로그 출력하여 파일 경로 확인
+
+        return send_from_directory(temp_dir, f"{contract_type}_contract.docx", as_attachment=True,
                                    download_name=f"{contract_type}_contract.docx")
 
     except Exception as e:
+        print(f"❌ Download error: {str(e)}")
         return jsonify({"error": f"Server error occurred: {str(e)}"}), 500
-
 
 
 @app.route('/update-contract', methods=['POST'])
@@ -429,85 +450,6 @@ def update_contract():
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
-
-@app.route("/generate", methods=["POST"])
-def generate_contract():
-    data = request.get_json()
-    selection = data.get('selection')
-    extracted_fields = data.get('extracted_fields', {})
-    language = session["user_language"]
-
-    if selection not in contract_types:
-        return jsonify({"error": "It's a wrong choice. Please select the correct contract type."})
-
-    contract_type = contract_types[selection]
-    template_prompt = f"Please fill out a standard contract of ‘{contract_type}’. Please respond in {language}."
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": template_prompt}
-            ],
-            max_tokens=1000,
-            temperature=0.7
-        )
-
-        contract_template = response.choices[0].message.content.strip()
-
-        if extracted_fields:
-            update_prompt = f"""
-            Please insert the values of the JSON data given in the following contract template into the appropriate positions.
-            Please respond in {language}.
-
-            Contract template:
-            {contract_template}
-
-            JSON data:
-            {json.dumps(extracted_fields, ensure_ascii=False)}
-
-            Requirements:
-            1. Insert each field of JSON data into the appropriate position in the contract.
-            2. Leave fields without data in the ‘[field name]’ format.
-            3. Please maintain the overall format and structure of the contract.
-            """
-
-            update_response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": update_prompt}
-                ],
-                max_tokens=1500,
-                temperature=0.7
-            )
-
-            updated_contract = update_response.choices[0].message.content.strip()
-            return jsonify({"contract": updated_contract})
-
-        return jsonify({"contract": contract_template})
-    except Exception as e:
-        return jsonify({"error": str(e)})
-
-
-@app.route('/generate', methods=['POST'])
-def generate_contract_api():
-    data = request.get_json()
-    selection = data.get('selection')
-
-    if selection not in contract_types:
-        return jsonify({"error": "❌ An error occurred while determining the contract type. Please try again."})
-
-    contract_content, required_fields = generate_contract(selection)
-
-    return jsonify({
-        "contract": contract_content,
-        "required_fields": required_fields,
-        "message": "📌 The information required in the contract is as follows:"
-    })
-
-
 @app.route('/extract-fields', methods=['POST'])
 def extract_fields():
     data = request.get_json()
@@ -517,10 +459,10 @@ def extract_fields():
     prompt = f"""
     Please return the items that should be included in the contract in the following sentence in JSON format:\n"
     "Output must be in valid JSON format. Do not include additional text other than JSON.\n"
-        
+
     The user input is as follows:
     "{user_input}"
-    
+
     Please extract the necessary contract fields from the input and return them in JSON format.
     The response must be a valid JSON object without additional text.
 
@@ -529,7 +471,7 @@ def extract_fields():
         "매도인 성명": "홍길동",
         "매수인 성명": "심청이"
     }}
-    
+
     Please respond in {language}."
     """
 
