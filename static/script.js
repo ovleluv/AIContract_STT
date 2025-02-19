@@ -58,19 +58,21 @@ document.addEventListener('DOMContentLoaded', function () {
 document.addEventListener('DOMContentLoaded', function () {
     console.log("✅ Document Loaded!");
 
-    const recordBtn = document.getElementById('record-btn');
-    if (recordBtn) {
-        console.log("🎤 Record button detected!");
-        recordBtn.addEventListener('click', function () {
-            if (!isRecording) {
-                startRecording();
-            } else {
-                stopRecording();
-            }
-        });
-    } else {
-        console.error("❌ can't find the record button.");
-    }
+    setTimeout(() => { // ✅ DOM이 완전히 로드된 후 실행되도록 딜레이 추가
+        const recordBtn = document.getElementById('record-btn');
+        if (recordBtn) {
+            console.log("🎤 Record button detected!");
+            recordBtn.addEventListener('click', function () {
+                if (!isRecording) {
+                    startRecording();
+                } else {
+                    stopRecording();
+                }
+            });
+        } else {
+            console.error("❌ can't find the record button.");
+        }
+    }, 1500);  // 0.5초 후 실행 (필요시 조정 가능)
 });
 
 // 🎤 음성 녹음 시작
