@@ -77,6 +77,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // 🎤 음성 녹음 시작
 function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("❌ getUserMedia is not supported or blocked.");
+        alert("Microphone access requires HTTPS. Please check your URL.");
+        return;
+    }
+
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
             mediaRecorder = new MediaRecorder(stream);
@@ -91,7 +97,7 @@ function startRecording() {
             console.log("🎙️ Start recording...");
         })
         .catch(error => {
-            console.error("❌ microphone error:", error);
+            console.error("❌ Microphone error:", error);
             alert("Microphone use not permitted. Check your web browser settings.");
         });
 }
