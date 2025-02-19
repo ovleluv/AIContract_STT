@@ -137,7 +137,7 @@ body {
 .bot-message, .user-message {
     padding: 12px;
     border-radius: 12px;
-    max-width: 75%;
+    max-width: 90%;
     font-size: 15px;
     line-height: 1.6;
     word-wrap: break-word;
@@ -155,6 +155,14 @@ body {
 .bot-message {
     background-color: #e3f2fd;
     align-self: flex-start;
+    padding: 12px;
+    border-radius: 12px;
+    max-width: 90%;
+    font-size: 15px;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 /* ✅ 옵션 버튼이 메시지와 자연스럽게 연결되도록 스타일링 */
@@ -168,13 +176,14 @@ body {
 /* ✅ 계약서 샘플 내용이 박스를 벗어나지 않도록 설정 */
 .bot-message pre {
     background: #e3f2fd;
-    padding: 10px;
-    border-radius: 10px;
-    white-space: pre-wrap;
+    padding: 12px;
+    border-radius: 12px;
+    max-width: 90%;
+    font-size: 15px;
+    line-height: 1.6;
     word-wrap: break-word;
-    overflow-x: auto; /* ✅ 가로 스크롤 허용 */
-    max-width: 100%;
-    display: block;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 
