@@ -13,7 +13,7 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
 api_key = os.environ.get("OPENAI_API_KEY")
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", secret_key)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 
 client = OpenAI(api_key=api_key)
 
