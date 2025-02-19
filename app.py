@@ -1,4 +1,4 @@
-from flask import Flask, render_template, send_from_directory, jsonify, request, session
+from flask import Flask, render_template, send_from_directory, jsonify, request, session, redirect
 from flask_cors import CORS
 import os
 import openai
@@ -11,6 +11,13 @@ import subprocess
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app, resources={r"/*": {"origins": ["https://aicontract.kr"]}})
+
+FORCE_HTTPS = os.environ.get("FORCE_HTTPS", "false").lower() == "true"
+
+@app.before_request
+def enforce_https():
+    if FORCE_HTTPS and request.headers.get('X-Forwarded-Proto') == 'http':
+        return redirect(request.url.replace('http://', 'https://'), code=301)
 
 api_key = os.environ.get("OPENAI_API_KEY")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
