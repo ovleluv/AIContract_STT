@@ -12,9 +12,8 @@ import subprocess
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
-# 환경 변수에서 API 키 로드
 api_key = os.environ.get("OPENAI_API_KEY")
-app.secret_key = os.environ.get("FLASK_SECRET_KEY")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", secret_key)
 
 client = OpenAI(api_key=api_key)
 
@@ -204,6 +203,7 @@ def chatbot_response():
     try:
         data = request.json
         user_message = data.get('message', '')
+        source = data.get('source', '')
 
         # ✅ 사용자가 처음 입력한 경우, 언어 감지 및 세션 저장
         if "user_language" not in session:
@@ -216,19 +216,80 @@ def chatbot_response():
         if not contract_type:
             return jsonify({"error": "❌ No relevant contract found. Please try again."})
 
+        # ✅ 사용자의 입력에서 필수 정보 자동 추출
+        extracted_fields = extract_contract_fields(user_message, detected_language)
+
         # ✅ 필요한 정보 & 계약서 내용 한 번에 요청 (API 호출 1회로 최적화)
         required_fields, contract_sample = generate_contract_info(contract_type, detected_language)
 
-        response_data = {
-            "contract_type": contract_type,
-            "required_fields": required_fields,
-            "contract_sample": contract_sample,
-            "language": detected_language
-        }
+        # ✅ 사용자의 입력 내용을 반영하여 계약서 자동 업데이트
+        updated_contract = fill_contract_with_fields(contract_sample, extracted_fields)
+
+        if source == "voice":
+            response_data = {
+                "contract_type": contract_type,
+                "contract_sample": updated_contract,
+                "language": detected_language
+            }
+        else:
+            response_data = {
+                "contract_type": contract_type,
+                "required_fields": required_fields,
+                "contract_sample": updated_contract,
+                "language": detected_language
+            }
+
         return jsonify(response_data)
 
     except Exception as e:
         return jsonify({"error": f"❌ Server error occurred: {str(e)}"}), 500
+
+def extract_contract_fields(user_input, language):
+    language = session["user_language"]
+    prompt = f"""
+    Please return only the necessary contract information from the following sentence in JSON format:
+    Do not include any extra text outside the JSON.
+
+    User Input:
+    "{user_input}"
+
+    Expected JSON format:
+    {{
+        "근로자 성명": "홍길동",
+        "연봉": "3000만원",
+        "근로 시작일": "2025-02-19",
+        "근로 시간": "주 40시간"
+    }}
+
+    Please ensure that the response is a valid JSON object.
+    The response must be in {language}.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an AI assistant that extracts contract-related information."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.7
+        )
+
+        extracted_data = response.choices[0].message.content.strip()
+        json_match = re.search(r'\{.*\}', extracted_data, re.DOTALL)
+
+        if json_match:
+            json_data = json.loads(json_match.group())
+            return json_data
+        else:
+            return {}
+
+    except json.JSONDecodeError:
+        return {}
+    except Exception as e:
+        print(f"❌ Error extracting fields: {str(e)}")
+        return {}
 
 
 def identify_contract_type(user_input):
@@ -374,7 +435,7 @@ def fill_contract_with_fields(contract, extracted_fields):
     - Do not include extra explanatory text such as introductions or conclusions.
     - Only return the updated contract text.
     - Do not add extra explanations.
-    
+
     Please respond in {language}.
     """
     try:
